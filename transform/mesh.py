@@ -41,6 +41,17 @@ class TransformMesh:
                     y_range=(self.y_min + self.y_bound[j] * (self.y_max - self.y_min), self.y_min + self.y_bound[j+1] * (self.y_max - self.y_min))
                 ))
 
+    def _to_cell_u(self, u, cell_x_idx):
+        return (u - self.x_bound[cell_x_idx]) / (self.x_bound[cell_x_idx + 1] - self.x_bound[cell_x_idx])
+
+    def _to_cell_v(self, v, cell_y_idx):
+        return (v - self.y_bound[cell_y_idx]) / (self.y_bound[cell_y_idx + 1] - self.y_bound[cell_y_idx])
+
+    def _to_cell_uv(self, uv, cell_x_idx, cell_y_idx):
+        return ((uv - np.array([self.y_bound[cell_y_idx], self.x_bound[cell_x_idx]])) /
+                   np.array([self.y_bound[cell_y_idx + 1] - self.y_bound[cell_y_idx],
+                             self.x_bound[cell_x_idx + 1] - self.x_bound[cell_x_idx]]))
+
     def map(self, uv):
         uv_shape = uv.shape
         uv = uv.reshape(-1, 2)
@@ -63,42 +74,34 @@ class TransformMesh:
 
             cell = self.cells[y_idx][x_idx]
 
-            cell_uv = ((uv[i] - np.array([self.y_bound[y_idx], self.x_bound[x_idx]])) /
-                       np.array([self.y_bound[y_idx+1] - self.y_bound[y_idx],
-                                 self.x_bound[x_idx+1] - self.x_bound[x_idx]]))
+            cell_uv = self._to_cell_uv(uv[i], x_idx, y_idx)
 
             ret[i] = cell.map(cell_uv)
 
         return ret.reshape(*uv_shape)
 
     def map_grid(self, rows, cols):
-        x_lin = np.linspace(0.0, 1.0, cols)
-        y_lin = np.linspace(0.0, 1.0, rows)
+        u_lin = np.linspace(0.0, 1.0, cols)
+        v_lin = np.linspace(0.0, 1.0, rows)
 
-        x_idx = np.zeros_like(x_lin, dtype=np.uint8)
-        y_idx = np.zeros_like(y_lin, dtype=np.uint8)
+        u_grid_bound = np.digitize(u_lin, self.x_bound)
+        u_grid_bound[-1] = cols
+        v_grid_bound = np.digitize(v_lin, self.y_bound)
+        v_grid_bound[-1] = cols
 
-        curr_idx = 0
-        for i in range(x_lin.shape[0]):
-            while True:
-                if x_lin[i] > self.x_bound[curr_idx+1]:
-                    curr_idx += 1
-                else:
-                    break
+        for j in range(self.rows):
+            for i in range(self.cols):
+                inter_u_lin = u_lin[u_grid_bound[i]:u_grid_bound[i + 1]]
+                inter_v_lin = v_lin[v_grid_bound[j]:v_grid_bound[j + 1]]
 
-            x_idx = curr_idx
+                cell = self.cells[j][i]
 
-        curr_idx = 0
-        for i in range(y_lin.shape[0]):
-            while True:
-                if y_lin[i] > self.y_bound[curr_idx + 1]:
-                    curr_idx += 1
-                else:
-                    break
+                cell_u = self._to_cell_u(inter_u_lin, i)
+                cell_v = self._to_cell_v(inter_v_lin, j)
 
-            y_idx = curr_idx
+                cell.map_grid(cell_u, cell_v)
 
-        # developing...
+                # developping...
 
 
 
